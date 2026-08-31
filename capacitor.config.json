@@ -1,0 +1,8 @@
+{
+  "appId": "com.xiaoli.yangji",
+  "appName": "小李养鸡",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": true
+  }
+}
