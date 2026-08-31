@@ -51,7 +51,7 @@ jobs:
 
       - name: Build release APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon
+        run: bash gradlew assembleRelease --no-daemon
 
       - name: Prepare update files
         shell: bash
