@@ -36,15 +36,13 @@ jobs:
       - name: Decode keystore from secret
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > android/release.keystore
-            cat > android/keystore.properties <<'PROPS'
-          storeFile=release.keystore
-          storePassword=${{ secrets.STORE_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          PROPS
+            printf 'storeFile=release.keystore\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > android/keystore.properties
           else
             echo "KEYSTORE_BASE64 not set, building unsigned release APK"
           fi
@@ -55,24 +53,22 @@ jobs:
 
       - name: Prepare update files
         shell: bash
+        env:
+          GITEE_REPO: ${{ secrets.GITEE_REPO }}
         run: |
           APK="android/app/build/outputs/apk/release/app-release.apk"
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
           VERSION_CODE=$(node -p "require('./package.json').appVersionCode")
           VERSION_NAME=$(node -p "require('./package.json').version")
           TAG="${GITHUB_REF_NAME:-manual}"
-          cat > update.json <<JSON
+          printf '{\n  "versionCode": %s,\n  "versionName": "%s",\n  "url": "https://gitee.com/%s/raw/releases/app-release.apk",\n  "sha256": "%s",\n  "changelog": "release %s"\n}\n' "$VERSION_CODE" "$VERSION_NAME" "$GITEE_REPO" "$SHA" "$TAG" > update.json
           {
-            "versionCode": $VERSION_CODE,
-            "versionName": "$VERSION_NAME",
-            "url": "https://gitee.com/${{ secrets.GITEE_REPO }}/raw/releases/app-release.apk",
-            "sha256": "$SHA",
-            "changelog": "release $TAG"
-          }
-          JSON
+            echo "SHA256=$SHA"
+            echo "VERSION_NAME=$VERSION_NAME"
+            echo "TAG=$TAG"
+          } >> "$GITHUB_ENV"
           echo "update.json:"
           cat update.json
-          echo "SHA256=$SHA" >> "$GITHUB_ENV"
 
       - name: Upload release APK artifact
         uses: actions/upload-artifact@v4
@@ -104,6 +100,6 @@ jobs:
           git config user.email "ci@github-actions.local"
           git config user.name "GitHub Actions"
           git add app-release.apk update.json
-          git commit -q -m "release $VERSION_NAME ($TAG)" || echo "no changes to commit"
+          git commit -q -m "release ${VERSION_NAME} (${TAG})" || echo "no changes to commit"
           git push -q "$REPO_URL" releases --force
           echo "Gitee update published: https://gitee.com/${GITEE_REPO}/raw/releases/update.json"
