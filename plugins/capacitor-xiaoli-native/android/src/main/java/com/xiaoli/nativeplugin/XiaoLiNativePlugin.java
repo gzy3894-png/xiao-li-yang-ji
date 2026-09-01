@@ -33,12 +33,13 @@ public class XiaoLiNativePlugin extends Plugin {
             call.reject("url is required");
             return;
         }
+        String charset = call.getString("charset", "UTF-8");
         new Thread(() -> {
             try {
                 HttpURLConnection conn = openConnection(url);
                 int code = conn.getResponseCode();
                 InputStream is = (code >= 200 && code < 400) ? conn.getInputStream() : conn.getErrorStream();
-                String body = readString(is);
+                String body = readString(is, charset);
                 if (is != null) {
                     is.close();
                 }
@@ -123,7 +124,7 @@ public class XiaoLiNativePlugin extends Plugin {
         return conn;
     }
 
-    private String readString(InputStream is) throws Exception {
+    private String readString(InputStream is, String charset) throws Exception {
         if (is == null) {
             return "";
         }
@@ -133,7 +134,8 @@ public class XiaoLiNativePlugin extends Plugin {
         while ((n = is.read(buf)) != -1) {
             out.write(buf, 0, n);
         }
-        return out.toString(StandardCharsets.UTF_8.name());
+        String cs = (charset == null || charset.isEmpty()) ? StandardCharsets.UTF_8.name() : charset;
+        return out.toString(cs);
     }
 
     private String sha256File(File file) throws Exception {

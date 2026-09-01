@@ -1,6 +1,6 @@
 {
   "name": "xiao-li-yang-ji",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "小李养鸡 - 开源基金实时估值 Android App（国内直连云更新）",
   "license": "GPL-3.0-only",
@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "cap:sync": "cap sync android"
+    "cap:sync": "cap sync android",
+    "verify": "esbuild scripts/verify-entry.mjs --bundle --format=esm --platform=node --outfile=.verify.bundle.mjs && node .verify.bundle.mjs && node -e \"require('fs').rmSync('.verify.bundle.mjs')\""
   },
   "dependencies": {
     "@capacitor/android": "6.0.0",
@@ -22,7 +23,8 @@
   "devDependencies": {
     "@capacitor/cli": "6.0.0",
     "@vitejs/plugin-vue": "5.2.1",
+    "esbuild": "^0.25.12",
     "vite": "5.4.11"
   },
-  "appVersionCode": 1
+  "appVersionCode": 2
 }

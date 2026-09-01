@@ -15,3 +15,5 @@ android/local.properties
 android/keystore.properties
 android/release.keystore
 android/capacitor-cordova-android-plugins/
+
+.verify.bundle.mjs

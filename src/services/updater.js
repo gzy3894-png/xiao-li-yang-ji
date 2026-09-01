@@ -1,8 +1,9 @@
 import { Capacitor } from '@capacitor/core';
 import { XiaoLiNative } from 'capacitor-xiaoli-native';
+import { httpGetText } from './http';
 
 const UPDATE_JSON_URL = 'https://gitee.com/gzy3894/xiao-li-yang-ji/raw/releases/update.json';
-const CURRENT_VERSION_CODE = 1;
+const CURRENT_VERSION_CODE = 2;
 
 export function currentVersionCode() {
   return CURRENT_VERSION_CODE;
@@ -10,9 +11,8 @@ export function currentVersionCode() {
 
 export async function checkUpdate() {
   try {
-    const res = await fetch(UPDATE_JSON_URL, { cache: 'no-store' });
-    if (!res.ok) return null;
-    return await res.json();
+    const text = await httpGetText(UPDATE_JSON_URL);
+    return JSON.parse(text.replace(/^﻿/, ''));
   } catch {
     return null;
   }

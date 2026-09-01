@@ -62,7 +62,7 @@
         </div>
         <div style="display:flex;gap:10px">
           <span>{{ s.PCTNVCHG }}%</span>
-          <span class="hint">{{ (s.PCTNAV * 100).toFixed(2) }}%</span>
+          <span class="hint">占净值 {{ s.JZBL }}%</span>
         </div>
       </div>
     </div>

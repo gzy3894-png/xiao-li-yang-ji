@@ -8,7 +8,7 @@ export interface InstallApkResult {
 }
 
 export interface XiaoLiNativePlugin {
-  get(options: { url: string }): Promise<HttpGetResult>;
+  get(options: { url: string; charset?: string }): Promise<HttpGetResult>;
   installApk(options: { url: string; sha256?: string }): Promise<InstallApkResult>;
 }
 

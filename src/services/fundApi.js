@@ -1,4 +1,4 @@
-import { httpGetJson } from './http';
+import { httpGetJson, httpGetText } from './http';
 
 function deviceId() {
   let id = localStorage.getItem('xf_device_id');
@@ -19,10 +19,67 @@ export async function searchFunds(keyword) {
   return (res.Datas || []).map((v) => ({ code: v.CODE, name: v.NAME }));
 }
 
-export async function getIndices(secids) {
-  const url = `https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&fields=f2,f3,f4,f12,f13,f14&secids=${secids.join(',')}&_=${ts()}`;
+function toNum(v) {
+  if (v === null || v === undefined || v === '' || v === '--') return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
+}
+
+async function getIndexSingle(secid) {
+  const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f43,f57,f58,f169,f170&_=${ts()}`;
   const res = await httpGetJson(url);
-  return (res.data && res.data.diff) || [];
+  const d = (res && res.data) || {};
+  return {
+    f12: d.f57,
+    f14: d.f58,
+    f2: toNum(d.f43) !== null ? Number((toNum(d.f43) / 100).toFixed(2)) : null,
+    f4: toNum(d.f169) !== null ? Number((toNum(d.f169) / 100).toFixed(2)) : null,
+    f3: toNum(d.f170) !== null ? Number((toNum(d.f170) / 100).toFixed(2)) : null
+  };
+}
+
+export async function getIndices(secids) {
+  try {
+    const list = await Promise.all(secids.map((secid) => getIndexSingle(secid)));
+    const ok = list.filter((x) => x.f12);
+    if (ok.length === secids.length) return ok;
+    throw new Error('partial');
+  } catch {
+    return getIndicesTencent(secids);
+  }
+}
+
+function secidToTencent(secid) {
+  const idx = secid.indexOf('.');
+  if (idx <= 0) return null;
+  const mkt = secid.slice(0, idx);
+  const code = secid.slice(idx + 1);
+  if (mkt === '1') return 'sh' + code;
+  if (mkt === '0') return 'sz' + code;
+  return null;
+}
+
+async function getIndicesTencent(secids) {
+  const pairs = secids.map((id) => ({ id, tc: secidToTencent(id) })).filter((x) => x.tc);
+  if (!pairs.length) return [];
+  const url = `https://qt.gtimg.cn/q=${pairs.map((p) => p.tc).join(',')}&_=${ts()}`;
+  const text = await httpGetText(url, 'gbk');
+  // 形如 v_sh000001="1~上证指数~000001~3979.88~..."; 每个变量一行
+  const out = [];
+  for (const p of pairs) {
+    const m = text.match(new RegExp('v_' + p.tc + '=\"([^\"]*)"', 'm'));
+    if (!m) continue;
+    const f = m[1].split('~');
+    if (f.length < 33) continue;
+    out.push({
+      f12: p.id.slice(p.id.indexOf('.') + 1),
+      f14: f[1],
+      f2: Number(f[3]),
+      f4: Number(f[31]),
+      f3: Number(f[32])
+    });
+  }
+  return out;
 }
 
 export async function getFundsData(codes) {
@@ -69,8 +126,5 @@ export async function getPositions(code) {
   const url = `https://fundmobapi.eastmoney.com/FundMNewApi/FundMNInverstPosition?FCODE=${code}&deviceid=Wap&plat=Wap&product=EFund&version=2.0.0&_=${ts()}`;
   const res = await httpGetJson(url);
   const stocks = (res.Datas && res.Datas.fundStocks) || [];
-  const gpList = stocks.map((s) => `${s.NEWTEXCH}.${s.GPDM}`).join(',');
-  const gpUrl = `https://push2.eastmoney.com/api/qt/ulist.np/get?fields=f1,f2,f3,f4,f12,f13,f14&fltt=2&secids=${gpList}&deviceid=Wap&plat=Wap&product=EFund&version=2.0.0&Uid=`;
-  const gpRes = await httpGetJson(gpUrl);
-  return { stocks, quotes: (gpRes.data && gpRes.data.diff) || [], expansion: res.Expansion || {} };
+  return { stocks, expansion: res.Expansion || {} };
 }
