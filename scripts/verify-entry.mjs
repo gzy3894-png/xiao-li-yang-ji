@@ -36,6 +36,14 @@ async function main() {
     const pos = await getPositions('110022');
     record('getPositions', Array.isArray(pos.stocks) && pos.stocks.length > 0 && pos.stocks.every((x) => typeof x.JZBL !== 'undefined'), `count=${pos.stocks.length}`);
 
+    const fakeQuote = estimateFund([
+      { GPDM: '600519', JZBL: '50' },
+      { GPDM: '000001', JZBL: '20' }
+    ], { '600519': { pct: 10 }, '000001': { pct: -5 } });
+    record('持仓加权公式', !!fakeQuote && Math.abs(fakeQuote.pct - 4) < 1e-9, JSON.stringify(fakeQuote));
+    const emptyAlias = await getStockQuotes([], 'tt');
+    record('行情源别名兼容', emptyAlias && emptyAlias.source === 'none', JSON.stringify(emptyAlias));
+
     const vt = await getValuationTrend('110022');
     record('getValuationTrend contract', !!vt && Object.prototype.hasOwnProperty.call(vt, 'Datas'), `Datas=${vt && vt.Datas}`);
 

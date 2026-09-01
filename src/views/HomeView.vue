@@ -1,6 +1,6 @@
 <template>
   <div class="page">
-    <div class="topbar row-between">
+    <div class="topbar row-between glass-bar">
       <div>
         <div class="app-title">小李养鸡</div>
         <div class="hint">估值源：{{ estimateSourceLabel }} · 行情：{{ showQuoteSource }}</div>
@@ -10,6 +10,19 @@
         <button class="btn btn-primary" @click="$router.push('/search')">+ 添加</button>
       </div>
     </div>
+
+    <div v-if="updateInfo" class="card update-banner row-between">
+      <div>
+        <div class="update-title">发现新版本 v{{ updateInfo.versionName }}</div>
+        <div class="hint">{{ updateInfo.source }} 源 · 当前 v{{ CURRENT_VERSION_NAME }}(code {{ CURRENT_VERSION_CODE }})<span v-if="updateInfo.size"> · {{ formatBytes(updateInfo.size) }}</span></div>
+        <div v-if="updateInfo.changelog" class="hint clamp-1">{{ updateInfo.changelog }}</div>
+      </div>
+      <button class="btn btn-primary" :disabled="updateBusy" @click="downloadUpdate">
+        {{ updateBusy ? (updateProgress >= 0 ? updateProgress + '%' : '下载中') : '更新' }}
+      </button>
+    </div>
+    <div v-if="updateBusy" class="progress-line"><i :style="{ width: (updateProgress >= 0 ? updateProgress : 18) + '%' }"></i></div>
+    <div v-if="updateMsg && !openSettings" class="hint update-msg">{{ updateMsg }}</div>
 
     <div v-if="openSettings" class="modal-mask" @click.self="openSettings = false">
       <div class="modal card">
@@ -21,13 +34,24 @@
             <div class="hint">{{ s.hint }}</div>
           </div>
         </label>
+        <div class="sec-title update-sec">在线更新</div>
+        <div class="hint">默认 Gitee 更新源；检查到新版本后，在 App 内下载 APK 并调起安装。</div>
+        <div class="row-between update-actions">
+          <button class="btn" :disabled="updateBusy" @click="checkUpdateManual">检查更新</button>
+          <button class="btn btn-primary" :disabled="updateBusy || !updateInfo" @click="downloadUpdate">
+            {{ updateBusy ? (updateProgress >= 0 ? updateProgress + '%' : '下载中') : '下载并安装' }}
+          </button>
+        </div>
+        <div v-if="updateBusy" class="progress-line in-modal"><i :style="{ width: (updateProgress >= 0 ? updateProgress : 18) + '%' }"></i></div>
+        <div class="hint update-result">当前 v{{ CURRENT_VERSION_NAME }}（code {{ CURRENT_VERSION_CODE }}）<span v-if="updateInfo"> → 最新 v{{ updateInfo.versionName }}（code {{ updateInfo.versionCode }}）</span></div>
+        <div v-if="updateMsg" class="hint update-result">{{ updateMsg }}</div>
         <button class="btn" style="width:100%;margin-top:10px" @click="openSettings = false">关闭</button>
       </div>
     </div>
 
     <IndexBar :indices="store.indices" />
 
-    <div class="card summary row-between">
+    <div class="card summary row-between summary-hero">
       <div>
         <div class="s-label">持仓市值</div>
         <div class="s-val">¥{{ store.totalMarketValue.toFixed(2) }}</div>
@@ -60,24 +84,22 @@
         <div class="fc-left">
           <div class="fc-name">{{ r.name }} <span class="fc-code">{{ r.code }}</span></div>
           <div class="hint" style="margin-top:2px">
-            <span v-if="r.quoteSource">{{ sourceTag(r.quoteSource) }}估值</span>
-            <span v-else-if="r.hasReplace">已更新净值</span>
-            <span v-else>官方估值</span>
+            <span>{{ estimateTag(r) }}</span>
             · {{ r.gztime ? String(r.gztime).slice(5, 11) : r.jzrq || '--' }}
           </div>
         </div>
         <div class="fc-right" style="text-align:right">
-          <div class="fc-gszzl" :class="showPct(r) >= 0 ? 'up' : 'down'">{{ showPct(r) >= 0 ? '+' : '' }}{{ Number(showPct(r)).toFixed(2) }}%</div>
+          <div class="fc-gszzl" :class="pctClass(r)">{{ pctText(r) }}</div>
           <div class="hint" style="margin-top:2px">
-            净 {{ fmt4(r.dwjz) }}<span v-if="r.estNav"> / 估 <span :class="showPct(r) >= 0 ? 'up' : 'down'">{{ fmt4(r.estNav) }}</span></span>
+            净 {{ fmt4(r.dwjz) }}<span v-if="r.estNav"> / 估 <span :class="pctClass(r)">{{ fmt4(r.estNav) }}</span></span>
           </div>
         </div>
       </div>
 
       <div class="fc-nums">
         <div class="fc-num"><span class="hint">份额/市值</span>{{ r.num || '--' }} / {{ fmt2(r.amount) }}</div>
-        <div class="fc-num"><span class="hint">今日</span><span :class="r.gains >= 0 ? 'up' : 'down'">{{ fmtSign2(r.gains) }}</span></div>
-        <div class="fc-num"><span class="hint">持有收益</span><span :class="r.costGains > 0 ? 'up' : (r.costGains < 0 ? 'down' : '')">{{ holdLabel(r) }}</span></div>
+        <div class="fc-num"><span class="hint">今日</span><span :class="numClass(r.gains)">{{ fmtSign2(r.gains) }}</span></div>
+        <div class="fc-num"><span class="hint">持有收益</span><span :class="numClass(r.costGains)">{{ holdLabel(r) }}</span></div>
       </div>
 
       <div class="fc-actions">
@@ -109,20 +131,25 @@
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue';
 import { useFundStore } from '../stores/fundStore';
 import IndexBar from '../components/IndexBar.vue';
-import { getAvailableUpdate, installUpdate } from '../services/updater';
+import { getAvailableUpdate, installUpdateWithFallback, CURRENT_VERSION_CODE, CURRENT_VERSION_NAME, formatBytes } from '../services/updater';
 
 const store = useFundStore();
 const editing = ref('');
 const editForm = ref({ num: '', cost: '' });
 const openSettings = ref(false);
 const estimateSource = ref(store.settings.estimateSource);
+const updateInfo = ref(null);
+const updateMsg = ref('');
+const updateBusy = ref(false);
+const updateProgress = ref(-1);
+let updateChecked = false;
 
 const sources = [
-  { value: 'auto', label: '自动（推荐）', hint: '先尝试东财行情，失败自动切腾讯/新浪' },
-  { value: 'em', label: '持仓加权 · 东财', hint: '根据前十大持仓×实时股价估算，准度最高' },
-  { value: 'tc', label: '持仓加权 · 腾讯', hint: '同上，但行情走腾讯' },
-  { value: 'sina', label: '持仓加权 · 新浪', hint: '同上，但行情走新浪' },
-  { value: 'tt', label: '天天基金官方估值', hint: '直接使用天天基金的盘中估值（偶尔偏低）' }
+  { value: 'auto', label: '智能估值（推荐）', hint: '官方盘中估值优先；缺失时用前十大持仓 × 实时行情补齐' },
+  { value: 'tt', label: '仅官方估值', hint: 'FundMNFInfo + 天天基金估值页；不做持仓加权替代' },
+  { value: 'em', label: '持仓加权 · 东财', hint: '强制用东方财富实时行情估算基金净值' },
+  { value: 'tc', label: '持仓加权 · 腾讯', hint: '强制用腾讯实时行情估算基金净值' },
+  { value: 'sina', label: '持仓加权 · 新浪', hint: '强制用新浪实时行情估算基金净值' }
 ];
 
 const estimateSourceLabel = computed(() => {
@@ -131,16 +158,37 @@ const estimateSourceLabel = computed(() => {
 });
 
 const showQuoteSource = computed(() => {
-  const map = { em: '东财', tencent: '腾讯', sina: '新浪', none: '无', '': '官方' };
+  const map = { em: '东财', tencent: '腾讯', tc: '腾讯', sina: '新浪', official: '官方', none: '无', '': '官方' };
   return map[store.quoteFeedback || ''] || '官方';
 });
 
 function sourceTag(s) {
-  return ({ em: '东财', tencent: '腾讯', sina: '新浪' })[s] || '官方';
+  return ({ em: '东财', tencent: '腾讯', tc: '腾讯', sina: '新浪' })[s] || '官方';
 }
 
-function showPct(r) {
-  return r.estPct != null ? r.estPct : (r.gszzl ?? 0);
+function estimateTag(r) {
+  if (r.estimateKind === 'holding') return `${sourceTag(r.quoteSource)}持仓`;
+  if (r.estimateKind === 'nav' || r.hasReplace) return '今日净值';
+  if (r.estimateKind === 'official') return '官方估值';
+  if (r.estNone || r.gszzl === null || r.gszzl === undefined) return '暂无估值';
+  return '官方估值';
+}
+function pctValue(r) {
+  const v = r.estPct !== null && r.estPct !== undefined ? r.estPct : r.gszzl;
+  const n = Number(v);
+  return v === null || v === undefined || Number.isNaN(n) ? null : n;
+}
+function pctText(r) {
+  const v = pctValue(r);
+  return v === null ? '--' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+}
+function pctClass(r) {
+  const v = pctValue(r);
+  return v === null ? 'muted-num' : (v >= 0 ? 'up' : 'down');
+}
+function numClass(v) {
+  const n = Number(v);
+  return v === null || v === undefined || Number.isNaN(n) ? 'muted-num' : (n >= 0 ? 'up' : 'down');
 }
 function fmt4(v) {
   return v === null || v === undefined ? '--' : Number(v).toFixed(4);
@@ -149,11 +197,14 @@ function fmt2(v) {
   return v === null || v === undefined ? '--' : Number(v).toFixed(2);
 }
 function fmtSign2(v) {
-  return v === null || v === undefined ? '--' : Number(v).toFixed(2);
+  const n = Number(v);
+  return v === null || v === undefined || Number.isNaN(n) ? '--' : (n >= 0 ? '+' : '') + n.toFixed(2);
 }
 function holdLabel(r) {
   if (!r.cost) return '--';
-  return Number(r.costGains).toFixed(2) + ' (' + (r.costGainsRate >= 0 ? '+' : '') + r.costGainsRate + '%)';
+  const gains = Number(r.costGains);
+  if (!Number.isFinite(gains)) return '--';
+  return gains.toFixed(2) + ' (' + (r.costGainsRate >= 0 ? '+' : '') + r.costGainsRate + '%)';
 }
 
 function toggleEdit(code) {
@@ -179,20 +230,58 @@ function del(r) {
 function confirmSource() {
   store.setEstimateSource(estimateSource.value);
 }
+async function silentCheckUpdate() {
+  if (updateChecked) return;
+  updateChecked = true;
+  const info = await getAvailableUpdate();
+  if (info && !info.error) updateInfo.value = info;
+}
+async function checkUpdateManual() {
+  updateMsg.value = '正在检查更新...';
+  const info = await getAvailableUpdate();
+  if (info && info.error) {
+    updateInfo.value = null;
+    updateMsg.value = `检查失败（${info.source || 'Gitee'}）：${info.error}`;
+    return;
+  }
+  if (info) {
+    updateInfo.value = info;
+    updateMsg.value = `发现新版本 v${info.versionName}（code ${info.versionCode}）`;
+    return;
+  }
+  updateInfo.value = null;
+  updateMsg.value = '当前已是最新版本。';
+}
+async function downloadUpdate() {
+  if (!updateInfo.value || updateBusy.value) return;
+  updateBusy.value = true;
+  updateProgress.value = updateInfo.value.size ? 0 : -1;
+  updateMsg.value = '开始下载安装包...';
+  try {
+    await installUpdateWithFallback(updateInfo.value, (p) => {
+      updateProgress.value = p.percent;
+      if (p.total) updateMsg.value = `下载中 ${p.percent >= 0 ? p.percent + '%' : ''}（${formatBytes(p.received)} / ${formatBytes(p.total)}）`;
+    });
+    updateProgress.value = 100;
+    updateMsg.value = '安装程序已调起，请在系统安装器中完成更新。';
+  } catch (e) {
+    updateMsg.value = '下载或调起安装失败，已尝试打开浏览器下载：' + (e && e.message ? e.message : e);
+  } finally {
+    updateBusy.value = false;
+  }
+}
 function isTradingTime() {
   const d = new Date();
   const day = d.getDay();
   if (day === 0 || day === 6) return false;
   const min = d.getHours() * 60 + d.getMinutes();
-  return min >= 9 * 60 + 30 && min <= 15 * 60 + 5;
+  return (min >= 570 && min <= 720) || (min >= 780 && min <= 905);
 }
 
 let timer = null;
 onMounted(() => {
   store.refresh();
-  getAvailableUpdate().then((u) => {
-    if (u && window.confirm(`发现新版本 v${u.versionName}，是否下载并安装？`)) installUpdate(u);
-  });
+  silentCheckUpdate();
   timer = setInterval(() => { if (isTradingTime()) store.refresh(); }, 60 * 1000);
 });
 onBeforeUnmount(() => clearInterval(timer));
@@ -219,4 +308,18 @@ onBeforeUnmount(() => clearInterval(timer));
 .src-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .src-row:last-child { border-bottom: none; }
 .src-info .src-name { font-weight: 600; font-size: 14px; }
+
+.glass-bar { position: sticky; top: 8px; z-index: 20; }
+.update-banner { border: none; color: #dcebff; }
+.update-title { font-weight: 800; font-size: 15px; color: #fff; }
+.update-sec { margin-top: 12px; }
+.update-actions { gap: 10px; margin-top: 10px; }
+.update-actions .btn { flex: 1; }
+.update-result { margin-top: 8px; line-height: 1.6; }
+.progress-line { height: 5px; border-radius: 999px; overflow: hidden; margin: 8px 0 10px; background: rgba(24, 119, 255, .14); }
+.progress-line i { display: block; height: 100%; min-width: 18%; border-radius: inherit; background: var(--brand-grad); transition: width .25s ease; }
+.progress-line.in-modal { margin: 10px 0 0; }
+.update-msg { margin: -2px 0 10px; }
+.clamp-1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px; }
+.muted-num { color: #8b96a9; }
 </style>

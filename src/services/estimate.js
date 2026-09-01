@@ -28,24 +28,29 @@ export async function getPositionsCached(code) {
   return stocks;
 }
 
-// 加权估值 = Σ(持仓权重 × 个股涨幅) / Σ(持仓权重)
+// 盘中持仓加权估值：JZBL 表示个股占基金净值的比例（%），
+// 因此基金涨幅 ≈ Σ(持仓权重 × 个股涨幅) / 100。未命中的持仓按 0 处理。
+// coverage = 披露持仓的总权重（前十大通常 40-70%），hitCoverage = 拿到行情的权重。
 export function estimateFund(stocks, quotes) {
   let weighted = 0;
-  let weightSum = 0;
+  let weightAll = 0;
+  let weightHit = 0;
   let hit = 0;
   for (const s of stocks || []) {
     const w = Number(s.JZBL);
     if (!Number.isFinite(w) || w <= 0) continue;
-    const q = quotes[s.GPDM];
+    weightAll += w;
+    const q = quotes ? quotes[s.GPDM] : null;
     if (!q || !Number.isFinite(q.pct)) continue;
     weighted += w * q.pct;
-    weightSum += w;
+    weightHit += w;
     hit += 1;
   }
-  if (weightSum <= 0 || hit === 0) return null;
+  if (weightAll <= 0 || hit === 0) return null;
   return {
-    pct: Number((weighted / weightSum).toFixed(4)),
-    coverage: Number((weightSum).toFixed(2)),
+    pct: Number((weighted / 100).toFixed(4)),
+    coverage: Number(weightAll.toFixed(2)),
+    hitCoverage: Number(weightHit.toFixed(2)),
     hit
   };
 }

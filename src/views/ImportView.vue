@@ -141,21 +141,21 @@ function reset() {
 </script>
 
 <style scoped>
-.app-title { font-size: 18px; font-weight: 700; }
+.app-title { font-size: 18px; font-weight: 800; }
 .topbar { margin-bottom: 12px; }
 .upload-area {
   display: block;
-  border: 2px dashed #d3d9e0;
-  border-radius: 12px;
+  border: 2px dashed rgba(24, 119, 255, .38);
+  border-radius: 18px;
   text-align: center;
-  padding: 24px;
+  padding: 26px;
   cursor: pointer;
-  background: #fbfcfd;
+  background: rgba(24, 119, 255, .06);
 }
-.upload-hint { color: #889; font-size: 14px; padding: 12px 0; }
+.upload-hint { color: #607692; font-size: 14px; padding: 12px 0; }
 .file-input { display: none; }
-.preview { width: 100%; max-height: 420px; object-fit: contain; border-radius: 8px; }
+.preview { width: 100%; max-height: 420px; object-fit: contain; border-radius: 12px; box-shadow: 0 10px 28px rgba(18,38,80,.16); }
 .form-row { margin: 10px 0; }
-.form-row label { font-size: 13px; color: #555; display: block; margin-bottom: 4px; }
-.btn.mini { padding: 4px 8px; font-size: 12px; margin-top: 6px; }
+.form-row label { font-size: 13px; color: #4a5a74; display: block; margin-bottom: 5px; font-weight: 700; }
+.btn.mini { padding: 5px 10px; font-size: 12px; margin-top: 7px; border-radius: 999px; }
 </style>

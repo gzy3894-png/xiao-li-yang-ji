@@ -65,10 +65,11 @@ jobs:
         run: |
           APK="android/app/build/outputs/apk/release/app-release.apk"
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
+          SIZE=$(stat -c%s "$APK")
           VERSION_CODE=$(node -p "require('./package.json').appVersionCode")
           VERSION_NAME=$(node -p "require('./package.json').version")
           TAG="${GITHUB_REF_NAME:-manual}"
-          printf '{\n  "versionCode": %s,\n  "versionName": "%s",\n  "url": "https://gitee.com/%s/raw/releases/app-release.apk",\n  "sha256": "%s",\n  "changelog": "release %s"\n}\n' "$VERSION_CODE" "$VERSION_NAME" "$GITEE_REPO" "$SHA" "$TAG" > update.json
+          printf '{\n  "versionCode": %s,\n  "versionName": "%s",\n  "url": "https://gitee.com/%s/raw/releases/app-release.apk",\n  "sha256": "%s",\n  "size": %s,\n  "publishedAt": "%s",\n  "changelog": "release %s"\n}' "$VERSION_CODE" "$VERSION_NAME" "$GITEE_REPO" "$SHA" "$SIZE" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$TAG" > update.json
           {
             echo "SHA256=$SHA"
             echo "VERSION_NAME=$VERSION_NAME"

@@ -1,6 +1,6 @@
 # 工作进度 · 小李养鸡
 
-> 本文件用于落盘本轮工作。最新发版：`v0.2.0`（2026-09-01）
+> 本文件用于落盘本轮工作。最新发版：`v0.2.0`（2026-09-01）；工作区修复版：`v0.2.1`（versionCode 4，待打 tag 发版）
 
 ## 1. 项目基础
 
@@ -23,6 +23,16 @@
 | 持仓只显示名称 | 前十大持仓加**实时涨跌百分比**（红绿） | `views/DetailView.vue` |
 | 无实时走势 | 新增「实时分时」Tab，交易时段每 30s 记录并画图 | `services/intraday.js` |
 | 手动录份额麻烦 | **截图导入持仓**：支付宝基金截图 → 本地 OCR（chi_sim）→ 解析名称/份额/成本/金额→ 确认 | `services/ocr.js`, `views/ImportView.vue`, `public/tessdata/` |
+
+
+## 2.1 本轮修复（v0.2.1 工作区）
+
+- **估值源（重点）**：`getFundsData` 现在会先用东财 FundMNFInfo 拉官方估值；对缺少 `GSZ/GSZZL/GZTIME` 的基金自动用 `fundgz.1234567.com.cn` 天天基金估值逐个补齐。默认 **官方估值/真实净值优先**，只有官方缺失才用前十大持仓加权补齐；命中率不足时宁可显示 `--/暂无估值`，不再把 null 显示成 `+0.00%`。
+- **估值公式修正**：持仓加权从 `Σ(w×pct)/Σ(w命中)` 改为 `Σ(w×pct)/100`，`JZBL` 口径为占基金净值百分比；未命中持仓按 0 处理，新增 `hitCoverage` 防误估。
+- **行情源修复**：兼容设置值 `tc/tencent/tt`；新浪源补上 Referer headers；港股/北交所行情前缀做了兜底。
+- **UI**：整套换成阿里云蓝科技风：蓝色渐变页底、透明玻璃磨砂卡、胶囊按钮/分段控件、响应式 `max-width`、标准宋体/衬线字体栈、数字等宽；首页新增蓝色更新 Banner 与设置里的在线更新面板。
+- **在线更新**：默认 Gitee `releases` 分支源，去掉前端硬编码 versionCode（改读 package.json/appVersionCode），update.json 支持 `size/publishedAt`；App 内原生下载 APK、sha256 校验、下载进度回调并调起安装，失败降级为浏览器打开。
+- **验证**：`npm run verify` 13 项通过；新增持仓加权公式与行情源别名回归用例；`npm run build` 通过。
 
 ## 3. 技术架构变更
 

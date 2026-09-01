@@ -47,6 +47,8 @@ export function normalizeFundRows(rawFundList, watchList) {
       num,
       cost
     };
+    // 估值语义标记：nav=当日已用真实净值；official=官方盘中估值；none=暂无估值（待持仓加权补齐）
+    row.estimateKind = hasReplace ? 'nav' : (gsz !== null && gszzl !== null ? 'official' : 'none');
     row.amount = calcMarketValue(row);
     row.gains = calcTodayGains(row);
     row.costGains = calcCostGains(row);
@@ -63,17 +65,18 @@ export function calcMarketValue(row) {
   return Number((nav * (Number(row.num) || 0)).toFixed(2));
 }
 
-// 当日估算收益
+// 当日估算收益。无估值时返回 null（前端显示 --），而不是误显示 0。
 export function calcTodayGains(row) {
   const num = Number(row.num) || 0;
   const dwjz = Number(row.dwjz);
-  if (Number.isNaN(dwjz)) return Number((0).toFixed(2));
+  if (!Number.isFinite(dwjz)) return null;
   if (row.hasReplace) {
-    const rate = Number(row.gszzl) || 0;
+    const rate = Number(row.gszzl);
+    if (!Number.isFinite(rate)) return null;
     return Number(((dwjz - dwjz / (1 + rate * 0.01)) * num).toFixed(2));
   }
   const gsz = Number(row.gsz);
-  if (Number.isNaN(gsz)) return Number((0).toFixed(2));
+  if (!Number.isFinite(gsz)) return null;
   return Number(((gsz - dwjz) * num).toFixed(2));
 }
 

@@ -7,7 +7,7 @@
     </div>
 
     <input
-      class="input"
+      class="input search-input"
       v-model="keyword"
       placeholder="输入基金代码 / 名称 / 拼音首字母"
       @input="onSearch"
@@ -65,20 +65,9 @@ onMounted(() => {});
 </script>
 
 <style scoped>
-.app-title {
-  font-size: 18px;
-  font-weight: 700;
-}
-.topbar {
-  margin-bottom: 12px;
-}
-.s-name {
-  font-size: 15px;
-  font-weight: 600;
-}
-.empty {
-  text-align: center;
-  color: #888;
-  padding: 30px 12px;
-}
+.app-title { font-size: 18px; font-weight: 800; }
+.topbar { margin-bottom: 12px; }
+.search-input { border-radius: 999px; padding-left: 18px; }
+.s-name { font-size: 15px; font-weight: 700; }
+.empty { text-align: center; color: #8892a5; padding: 30px 12px; }
 </style>

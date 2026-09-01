@@ -8,13 +8,17 @@ function toNum(v) {
 
 // 行情源适配器：统一返回 { [code6位]: { name, price, pct } }
 function codesFromStocks(stocks) {
-  // EM 行情 secid 用的是 mkt.code 形式：1.600519 / 0.000001；腾讯源用 sh/sz 前缀
-  return stocks.map((s) => ({
-    code: s.GPDM,
-    name: s.GPJC,
-    emSecid: `${s.NEWTEXCH}.${s.GPDM}`,
-    tcCode: (Number(s.NEWTEXCH) === 1 ? 'sh' : 'sz') + s.GPDM
-  }));
+  // EM 行情 secid 用的是 mkt.code 形式：1.600519 / 0.000001；腾讯源用 sh/sz/bj 前缀
+  return stocks.map((s) => {
+    const mkt = String(s.NEWTEXCH ?? '');
+    const prefix = mkt === '1' ? 'sh' : (mkt === '0' ? 'sz' : (mkt === '2' ? 'bj' : 'sz'));
+    return {
+      code: s.GPDM,
+      name: s.GPJC,
+      emSecid: `${mkt || '0'}.${s.GPDM}`,
+      tcCode: prefix + s.GPDM
+    };
+  });
 }
 
 // 东方财富：逐只拉（push2 stock/get 实测可用；一次拉一批（ulist）有时不稳定）
@@ -72,7 +76,7 @@ async function quotesSina(stocks) {
   const codes = items.map((it) => it.tcCode).join(',');
   const url = `https://hq.sinajs.cn/list=${codes}`;
   try {
-    const text = await httpGetText(url, 'gbk', { referer: 'https://finance.sina.com.cn' });
+    const text = await httpGetText(url, 'gbk', { headers: { Referer: 'https://finance.sina.com.cn' } });
     const out = {};
     for (const it of items) {
       const m = text.match(new RegExp('hq_str_' + it.tcCode + '=\\"([^\\"]*)"', 'm'));
@@ -101,13 +105,26 @@ export const QUOTE_SOURCES = {
   sina: { label: '新浪行情', fetch: quotesSina }
 };
 
+const SOURCE_ALIAS = {
+  tc: 'tencent',
+  tencent: 'tencent',
+  tt: 'auto',
+  official: 'auto',
+  auto: 'auto',
+  em: 'em',
+  sina: 'sina'
+};
+
 export async function getStockQuotes(stocks, source = 'auto') {
-  if (stocks && stocks.length === 0) return {};
-  const order = source === 'auto' ? ['em', 'tencent', 'sina'] : [source];
+  if (stocks && stocks.length === 0) return { source: 'none', quotes: {} };
+  const normalized = SOURCE_ALIAS[source] || 'auto';
+  const order = normalized === 'auto' ? ['em', 'tencent', 'sina'] : [normalized];
   for (const src of order) {
+    const adapter = QUOTE_SOURCES[src];
+    if (!adapter || typeof adapter.fetch !== 'function') continue;
     try {
-      const got = await QUOTE_SOURCES[src].fetch(stocks);
-      const hit = Object.keys(got).length;
+      const got = await adapter.fetch(stocks);
+      const hit = Object.keys(got || {}).length;
       if (hit > 0) return { source: src, quotes: got };
     } catch {
       // 换下一个源

@@ -149,7 +149,7 @@ const baseItems = computed(() => {
 
 const estimateWay = computed(() => {
   if (quoteSrcUsed.value) return `持仓加权（${QUOTE_SOURCES[quoteSrcUsed.value]?.label || quoteSrcUsed.value}）· 覆盖率仅前十大`;
-  return '天天基金官方估值';
+  return quote.gszzl === null || quote.gszzl === undefined ? '盘中估值暂不可用' : '天天基金官方估值/最新净值';
 });
 
 function fmtPct(v) {
@@ -164,7 +164,7 @@ function isTradingTime() {
   const day = d.getDay();
   if (day === 0 || day === 6) return false;
   const min = d.getHours() * 60 + d.getMinutes();
-  return (min >= 570 && min <= 900) || (min >= 780 && min <= 930) || (min >= 780 && min <= 930) || (min >= 930 && min <= 1200) || (min >= 780 && min <= 930);
+  return (min >= 570 && min <= 720) || (min >= 775 && min <= 915);
 }
 
 function timeX() {
@@ -178,6 +178,7 @@ function timeX() {
 
 function baseLineOption(x, series, unit) {
   return {
+    color: ['#1677ff', '#e64545', '#00b3ff'],
     tooltip: { trigger: 'axis' },
     legend: { data: series.map((s) => s.name), bottom: 0 },
     grid: { left: 44, right: 16, top: 24, bottom: 36 },
@@ -209,20 +210,42 @@ async function loadQuote() {
 async function loadRealtime() {
   try {
     const stocks = await getPositionsCached(code);
-    if (!stocks.length) return;
     positions.value = stocks.slice(0, 10);
-    const { quotes: qs, source } = await getStockQuotes(stocks, store.settings.estimateSource === 'tt' ? 'auto' : store.settings.estimateSource);
-    if (qs) quotes.value = qs;
-    quoteSrcUsed.value = source;
-    const est = estimateFund(stocks, qs);
-    if (est !== null && quote.dwjz !== null) {
-      estimatePct.value = est.pct;
-      estimateNav.value = Number((quote.dwjz * (1 + est.pct / 100)).toFixed(4));
-      const d = new Date();
-      estTime.value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
-      if (isTradingTime()) appendIntradayPoint(code, est.pct);
-      if (tab.value === 'rt') renderRealtimeChart();
+    if (!stocks.length) {
+      quoteSrcUsed.value = '';
+      return;
     }
+
+    const mode = store.settings.estimateSource || 'auto';
+    const hasOfficial = quote.dwjz !== null && quote.gszzl !== null && quote.gszzl !== undefined;
+    // 官方估值优先：auto/tt 模式不再用持仓强行覆盖官方估值。
+    if ((mode === 'auto' || mode === 'tt') && hasOfficial) {
+      quoteSrcUsed.value = '';
+      estimatePct.value = null;
+      estimateNav.value = null;
+      if (isTradingTime()) appendIntradayPoint(code, Number(quote.gszzl));
+      if (tab.value === 'rt') renderRealtimeChart();
+      return;
+    }
+    if (mode === 'tt') {
+      quoteSrcUsed.value = '';
+      estimatePct.value = null;
+      estimateNav.value = null;
+      return;
+    }
+
+    const { quotes: qs, source } = await getStockQuotes(stocks, mode === 'auto' ? 'auto' : mode);
+    if (qs) quotes.value = qs;
+    const est = estimateFund(stocks, qs);
+    const reliable = est && est.hitCoverage >= Math.max(10, est.coverage * 0.5);
+    if (!reliable || quote.dwjz === null) return;
+    quoteSrcUsed.value = source;
+    estimatePct.value = est.pct;
+    estimateNav.value = Number((quote.dwjz * (1 + est.pct / 100)).toFixed(4));
+    const d = new Date();
+    estTime.value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+    if (isTradingTime()) appendIntradayPoint(code, est.pct);
+    if (tab.value === 'rt') renderRealtimeChart();
   } catch { /* ignore */ }
 }
 

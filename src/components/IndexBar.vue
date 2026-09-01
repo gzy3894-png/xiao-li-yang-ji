@@ -18,28 +18,20 @@ defineProps({ indices: { type: Array, default: () => [] } });
 .index-scroll {
   display: flex;
   overflow-x: auto;
-  gap: 8px;
-  padding: 2px 0 10px;
+  gap: 10px;
+  padding: 2px 2px 10px;
+  scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
 }
+.index-scroll::-webkit-scrollbar { display: none; }
 .index-item {
-  flex: 0 0 96px;
+  flex: 0 0 108px;
   text-align: center;
   margin-bottom: 0;
-  padding: 10px 8px;
+  padding: 12px 8px;
+  scroll-snap-align: start;
 }
-.idx-name {
-  font-size: 12px;
-  color: #888;
-  white-space: nowrap;
-}
-.idx-val {
-  font-size: 16px;
-  font-weight: 600;
-  margin-top: 4px;
-}
-.idx-pct {
-  font-size: 12px;
-  margin-top: 2px;
-}
+.idx-name { font-size: 12px; color: #6f7b91; white-space: nowrap; }
+.idx-val { font-size: 17px; font-weight: 800; margin-top: 5px; }
+.idx-pct { font-size: 12px; margin-top: 3px; font-weight: 700; }
 </style>

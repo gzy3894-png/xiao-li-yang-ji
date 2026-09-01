@@ -19,6 +19,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Iterator;
 
 @CapacitorPlugin(name = "XiaoLiNative")
 public class XiaoLiNativePlugin extends Plugin {
@@ -34,9 +35,10 @@ public class XiaoLiNativePlugin extends Plugin {
             return;
         }
         String charset = call.getString("charset", "UTF-8");
+        JSObject headers = call.getObject("headers");
         new Thread(() -> {
             try {
-                HttpURLConnection conn = openConnection(url);
+                HttpURLConnection conn = openConnection(url, headers);
                 int code = conn.getResponseCode();
                 InputStream is = (code >= 200 && code < 400) ? conn.getInputStream() : conn.getErrorStream();
                 String body = readString(is, charset);
@@ -71,16 +73,29 @@ public class XiaoLiNativePlugin extends Plugin {
                 }
                 File apk = new File(dir, "update-" + System.currentTimeMillis() + ".apk");
 
-                HttpURLConnection conn = openConnection(url);
+                HttpURLConnection conn = openConnection(url, null);
                 conn.setConnectTimeout(20000);
                 conn.setReadTimeout(180000);
+                long total = conn.getContentLengthLong();
+                long received = 0;
+                int lastPercent = -1;
+                long lastEmit = 0;
                 try (InputStream is = conn.getInputStream(); FileOutputStream fos = new FileOutputStream(apk)) {
-                    byte[] buf = new byte[8192];
+                    byte[] buf = new byte[16384];
                     int n;
                     while ((n = is.read(buf)) != -1) {
                         fos.write(buf, 0, n);
+                        received += n;
+                        int percent = total > 0 ? (int) ((received * 100) / total) : -1;
+                        long now = System.currentTimeMillis();
+                        if (percent != lastPercent || now - lastEmit > 300) {
+                            emitDownloadProgress(received, total, false);
+                            lastPercent = percent;
+                            lastEmit = now;
+                        }
                     }
                 }
+                emitDownloadProgress(total > 0 ? total : received, total, true);
                 conn.disconnect();
 
                 if (sha256 != null && !sha256.isEmpty()) {
@@ -112,7 +127,7 @@ public class XiaoLiNativePlugin extends Plugin {
         }).start();
     }
 
-    private HttpURLConnection openConnection(String url) throws Exception {
+    private HttpURLConnection openConnection(String url, JSObject headers) throws Exception {
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setRequestMethod("GET");
         conn.setConnectTimeout(15000);
@@ -120,8 +135,26 @@ public class XiaoLiNativePlugin extends Plugin {
         conn.setRequestProperty("User-Agent", UA);
         conn.setRequestProperty("Accept", "*/*");
         conn.setRequestProperty("Accept-Language", "zh-CN,zh;q=0.9");
+        if (headers != null) {
+            Iterator<String> keys = headers.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                String value = headers.getString(key);
+                if (key != null && value != null && !key.isEmpty()) {
+                    conn.setRequestProperty(key, value);
+                }
+            }
+        }
         conn.setInstanceFollowRedirects(true);
         return conn;
+    }
+
+    private void emitDownloadProgress(long received, long total, boolean done) {
+        JSObject progress = new JSObject();
+        progress.put("received", received);
+        progress.put("total", total);
+        progress.put("done", done);
+        notifyListeners("updateDownloadProgress", progress);
     }
 
     private String readString(InputStream is, String charset) throws Exception {
