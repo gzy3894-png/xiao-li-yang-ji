@@ -1,9 +1,12 @@
 import { defineStore } from 'pinia';
-import { loadWatchList, saveWatchList } from '../services/storage';
+import { loadWatchList, saveWatchList, loadSettings, saveSettings } from '../services/storage';
 import { getFundsData, getIndices } from '../services/fundApi';
 import { normalizeFundRows } from '../utils/calc';
+import { getPositionsCached, estimateFund } from '../services/estimate';
+import { getStockQuotes } from '../services/quotes';
 
 const DEFAULT_INDICES = ['1.000001', '0.399001', '1.000300', '0.399006', '1.000688'];
+const DEFAULT_SETTINGS = { estimateSource: 'auto', quoteSource: 'auto' };
 
 export const useFundStore = defineStore('fund', {
   state: () => ({
@@ -11,7 +14,9 @@ export const useFundStore = defineStore('fund', {
     rows: [],
     indices: [],
     loading: false,
-    lastError: ''
+    lastError: '',
+    settings: { ...DEFAULT_SETTINGS, ...loadSettings() },
+    quoteFeedback: ''
   }),
   getters: {
     totalMarketValue: (s) => Number(s.rows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0).toFixed(2)),
@@ -29,6 +34,7 @@ export const useFundStore = defineStore('fund', {
         ]);
         this.rows = rows;
         this.indices = indices;
+        await this.applyEstimate();
       } catch (e) {
         this.lastError = e && e.message ? e.message : String(e);
       } finally {
@@ -41,6 +47,36 @@ export const useFundStore = defineStore('fund', {
     },
     async fetchIndices() {
       return getIndices(DEFAULT_INDICES);
+    },
+    // 用持仓加权重新估值（替代/修正 DCF 官方 GSZ）
+    async applyEstimate() {
+      if (this.settings.estimateSource === 'tt') return; // 纯官方天天基金估值
+      let feedback = '';
+      await Promise.all(this.rows.map(async (row) => {
+        try {
+          const stocks = await getPositionsCached(row.code);
+          if (!stocks.length) return;
+          const { quotes, source } = await getStockQuotes(stocks, this.settings.estimateSource === 'auto' ? 'auto' : this.settings.estimateSource);
+          const est = estimateFund(stocks, quotes);
+          if (est !== null && row.dwjz !== null) {
+            row.estPct = est.pct;
+            row.estNav = Number((row.dwjz * (1 + est.pct / 100)).toFixed(4));
+            row.quoteSource = source;
+            // 用估值代替官方估算，重新计算收益
+            row.gszzl = est.pct;
+            row.gsz = row.estNav;
+            row.gains = Number(((row.estNav - row.dwjz) * (Number(row.num) || 0)).toFixed(2));
+            feedback = source;
+          }
+        } catch { /* 单只失败不影响整体 */ }
+      }));
+      this.quoteFeedback = feedback;
+      this.rows = [...this.rows];
+    },
+    setEstimateSource(src) {
+      this.settings.estimateSource = src;
+      saveSettings({ estimateSource: src });
+      this.refresh();
     },
     addFund(item) {
       const idx = this.watchList.findIndex((w) => w.code === item.code);

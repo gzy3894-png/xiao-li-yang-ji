@@ -4,6 +4,8 @@ globalThis.localStorage = { getItem: () => null, setItem: () => {} };
 
 import { searchFunds, getIndices, getFundsData, getFundBaseInfo, getManagerList, getPositions, getValuationTrend, getYieldTrend, getNavTrend } from '../src/services/fundApi.js';
 import { normalizeFundRows } from '../src/utils/calc.js';
+import { getPositionsCached, estimateFund } from '../src/services/estimate.js';
+import { getStockQuotes } from '../src/services/quotes.js';
 
 const results = [];
 function record(name, ok, detail) {
@@ -42,6 +44,12 @@ async function main() {
 
     const nt = await getNavTrend('110022', 'y');
     record('getNavTrend', Array.isArray(nt.Datas) && nt.Datas.length > 0, `count=${nt.Datas && nt.Datas.length}`);
+
+    // 持仓加权估值。需要持仓列表 + 行情源（默认 auto：东财失败自动切腾讯）
+    const stocks = await getPositionsCached('110022');
+    const { quotes, source } = await getStockQuotes(stocks, 'auto');
+    const est = estimateFund(stocks, quotes);
+    record('持仓加权估值', !!(est && est.pct !== null && est.pct !== undefined), `估值=${est && est.pct}% 源=${source} 覆盖率=${est && est.coverage}%`);
   } catch (e) {
     record('main', false, `${e && e.stack || e}`);
   }

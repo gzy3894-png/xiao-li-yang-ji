@@ -3,7 +3,7 @@ import { XiaoLiNative } from 'capacitor-xiaoli-native';
 import { httpGetText } from './http';
 
 const UPDATE_JSON_URL = 'https://gitee.com/gzy3894/xiao-li-yang-ji/raw/releases/update.json';
-const CURRENT_VERSION_CODE = 2;
+const CURRENT_VERSION_CODE = 3;
 
 export function currentVersionCode() {
   return CURRENT_VERSION_CODE;
