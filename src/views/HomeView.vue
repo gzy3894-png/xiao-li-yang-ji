@@ -70,6 +70,11 @@
       </div>
     </div>
 
+    <div class="seg view-switch">
+      <button class="btn mini" :class="{ active: viewMode === 'all' }" @click="viewMode = 'all'">全部关注</button>
+      <button class="btn mini" :class="{ active: viewMode === 'holding' }" @click="viewMode = 'holding'">仅持仓</button>
+    </div>
+
     <div v-if="store.lastError" class="hint" style="margin-bottom:8px">行情不可用：{{ store.lastError }}</div>
 
     <div v-if="!store.rows.length && !store.loading" class="card empty">
@@ -79,7 +84,7 @@
       </div>
     </div>
 
-    <div v-for="(r, i) in store.rows" :key="r.code" class="card fund-card">
+    <div v-for="r in visibleRows" :key="r.code" class="card fund-card">
       <div class="fc-main row-between" @click="$router.push('/fund/' + r.code)">
         <div class="fc-left">
           <div class="fc-name">{{ r.name }} <span class="fc-code">{{ r.code }}</span></div>
@@ -103,9 +108,9 @@
       </div>
 
       <div class="fc-actions">
-        <button class="btn mini" @click="toggleEdit(r.code)">{{ editing === r.code ? '收起' : '编辑持仓' }}</button>
-        <button class="btn mini" @click="move(i, -1)">上移</button>
-        <button class="btn mini" @click="move(i, 1)">下移</button>
+        <button class="btn mini" @click="$router.push('/fund/' + r.code + '/position')">{{ Number(r.num) > 0 ? '编辑持仓' : '录入持仓' }}</button>
+        <button class="btn mini" @click="moveCode(r.code, -1)">上移</button>
+        <button class="btn mini" @click="moveCode(r.code, 1)">下移</button>
         <button class="btn mini danger" @click="del(r)">删除</button>
       </div>
 
@@ -138,6 +143,8 @@ const editing = ref('');
 const editForm = ref({ num: '', cost: '' });
 const openSettings = ref(false);
 const estimateSource = ref(store.settings.estimateSource);
+const viewMode = ref('all');
+const visibleRows = computed(() => viewMode.value === 'holding' ? store.rows.filter((r) => Number(r.num) > 0) : store.rows);
 const updateInfo = ref(null);
 const updateMsg = ref('');
 const updateBusy = ref(false);
@@ -145,11 +152,11 @@ const updateProgress = ref(-1);
 let updateChecked = false;
 
 const sources = [
-  { value: 'auto', label: '智能估值（推荐）', hint: '官方盘中估值优先；缺失时用前十大持仓 × 实时行情补齐' },
-  { value: 'tt', label: '仅官方估值', hint: 'FundMNFInfo + 天天基金估值页；不做持仓加权替代' },
-  { value: 'em', label: '持仓加权 · 东财', hint: '强制用东方财富实时行情估算基金净值' },
-  { value: 'tc', label: '持仓加权 · 腾讯', hint: '强制用腾讯实时行情估算基金净值' },
-  { value: 'sina', label: '持仓加权 · 新浪', hint: '强制用新浪实时行情估算基金净值' }
+  { value: 'auto', label: '公共估值（推荐）', hint: '天天 FundValuationLast 批量优先；缺失时补新浪基金估算，绝不用昨日净值冒充' },
+  { value: 'tt', label: '仅官方/天天估值', hint: '只使用 FundValuationLast 返回的官方盘中估值；无估值显示 --' },
+  { value: 'em', label: '持仓自算 · 东财（实验）', hint: '自算口径，只在设置里明确开启；不作为默认主估值' },
+  { value: 'tc', label: '持仓自算 · 腾讯（实验）', hint: '自算口径，只在设置里明确开启；不作为默认主估值' },
+  { value: 'sina', label: '持仓自算 · 新浪行情（实验）', hint: '自算口径，只在设置里明确开启；不作为默认主估值' }
 ];
 
 const estimateSourceLabel = computed(() => {
@@ -167,11 +174,13 @@ function sourceTag(s) {
 }
 
 function estimateTag(r) {
-  if (r.estimateKind === 'holding') return `${sourceTag(r.quoteSource)}持仓`;
+  if (r.estimateKind === 'holding') return '持仓自算（实验）';
   if (r.estimateKind === 'nav' || r.hasReplace) return '今日净值';
+  if (r.estimateSource === 'tiantian') return '天天估值';
+  if (r.estimateSource === 'sina_ds3') return '新浪估值Ⅲ';
+  if (r.estimateSource === 'sina_ds2') return '新浪估值Ⅱ';
   if (r.estimateKind === 'official') return '官方估值';
-  if (r.estNone || r.gszzl === null || r.gszzl === undefined) return '暂无估值';
-  return '官方估值';
+  return '暂无估值';
 }
 function pctValue(r) {
   const v = r.estPct !== null && r.estPct !== undefined ? r.estPct : r.gszzl;
@@ -217,10 +226,11 @@ function saveEdit(code) {
   store.updateHold(code, { num: Number(editForm.value.num) || 0, cost: Number(editForm.value.cost) || 0 });
   editing.value = '';
 }
-function move(i, dir) {
+function moveCode(code, dir) {
   const next = [...store.watchList];
+  const i = next.findIndex((w) => w.code === code);
   const j = i + dir;
-  if (j < 0 || j >= next.length) return;
+  if (i < 0 || j < 0 || j >= next.length) return;
   [next[i], next[j]] = [next[j], next[i]];
   store.reorder(next);
 }
@@ -322,4 +332,5 @@ onBeforeUnmount(() => clearInterval(timer));
 .update-msg { margin: -2px 0 10px; }
 .clamp-1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px; }
 .muted-num { color: #8b96a9; }
+.view-switch { margin: 0 0 12px; }
 </style>

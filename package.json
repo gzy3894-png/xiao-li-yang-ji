@@ -1,6 +1,6 @@
 {
   "name": "xiao-li-yang-ji",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "description": "小李养鸡 - 开源基金实时估值 Android App（国内直连云更新）",
   "license": "GPL-3.0-only",
@@ -9,10 +9,13 @@
     "build": "vite build",
     "preview": "vite preview",
     "cap:sync": "cap sync android",
-    "verify": "esbuild scripts/verify-entry.mjs --bundle --format=esm --platform=node --outfile=.verify.bundle.mjs && node .verify.bundle.mjs && node -e \"require('fs').rmSync('.verify.bundle.mjs')\""
+    "verify": "esbuild scripts/verify-entry.mjs --bundle --format=esm --platform=node --outfile=.verify.bundle.mjs && node .verify.bundle.mjs && node -e \"require('fs').rmSync('.verify.bundle.mjs')\"",
+    "qa:fund-oracle": "esbuild scripts/qa-fund-oracle.mjs --bundle --format=esm --platform=node --outfile=.qa-fund-oracle.bundle.mjs && node .qa-fund-oracle.bundle.mjs && node -e \"require('fs').rmSync('.qa-fund-oracle.bundle.mjs')\"",
+    "qa:static": "node scripts/qa-static.mjs"
   },
   "dependencies": {
     "@capacitor/android": "6.0.0",
+    "@capacitor/app": "^6.0.0",
     "@capacitor/core": "6.0.0",
     "capacitor-xiaoli-native": "file:./plugins/capacitor-xiaoli-native",
     "echarts": "5.5.1",
@@ -27,5 +30,5 @@
     "esbuild": "^0.25.12",
     "vite": "5.4.11"
   },
-  "appVersionCode": 4
+  "appVersionCode": 5
 }

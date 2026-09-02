@@ -1,4 +1,5 @@
 import { httpGetJson, httpGetText } from './http';
+import { enrichFundDatas } from './valuation';
 
 function deviceId() {
   let id = localStorage.getItem('xf_device_id');
@@ -86,50 +87,9 @@ export async function getFundsData(codes) {
   if (!codes.length) return [];
   const url = `https://fundmobapi.eastmoney.com/FundMNewApi/FundMNFInfo?pageIndex=1&pageSize=200&plat=Android&appType=ttjj&product=EFund&Version=1&deviceid=${deviceId()}&Fcodes=${codes.join(',')}`;
   const res = await httpGetJson(url);
-  return fillMissingOfficialEstimates(res.Datas || []);
+  return enrichFundDatas(res.Datas || [], res.Expansion || {});
 }
 
-function parseFundGz(text) {
-  const m = String(text || '').match(/jsonpgz\((.*)\);?\s*$/s);
-  if (!m) return null;
-  try {
-    const obj = JSON.parse(m[1]);
-    return obj && obj.fundcode ? obj : null;
-  } catch {
-    return null;
-  }
-}
-
-function hasRealtimeEstimate(v) {
-  return v && toNum(v.GSZ) !== null && toNum(v.GSZZL) !== null && !!v.GZTIME;
-}
-
-// fundgz.1234567.com.cn 是天天基金同源盘中估值接口；当 FundMNFInfo 缺少 GSZ 时逐一补齐。
-export async function getFundRealtimeEstimate(code) {
-  try {
-    const text = await httpGetText(`https://fundgz.1234567.com.cn/js/${code}.js?rt=${ts()}`);
-    return parseFundGz(text);
-  } catch {
-    return null;
-  }
-}
-
-async function fillMissingOfficialEstimates(list) {
-  const targets = (list || []).filter((v) => v && v.FCODE && !hasRealtimeEstimate(v)).slice(0, 120);
-  if (!targets.length) return list;
-  await Promise.all(targets.map(async (row) => {
-    const gz = await getFundRealtimeEstimate(row.FCODE);
-    if (!gz) return;
-    const gsz = toNum(gz.gsz);
-    const gszzl = toNum(gz.gszzl);
-    if (gsz === null || gszzl === null) return;
-    row.GSZ = gsz;
-    row.GSZZL = gszzl;
-    row.GZTIME = gz.gztime || row.GZTIME || '';
-    if (!row.SHORTNAME && gz.name) row.SHORTNAME = gz.name;
-  }));
-  return list;
-}
 
 export async function getValuationTrend(code) {
   const url = `https://fundmobapi.eastmoney.com/FundMApi/FundVarietieValuationDetail.ashx?FCODE=${code}&deviceid=Wap&plat=Wap&product=EFund&version=2.0.0&_=${ts()}`;

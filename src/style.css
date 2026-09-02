@@ -250,3 +250,18 @@ body::before {
 @media (min-width: 1080px) {
   .page { max-width: 980px; }
 }
+
+.exit-tip {
+  position: fixed;
+  left: 50%;
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 200;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: rgba(9, 22, 44, .86);
+  color: #fff;
+  font-size: 13px;
+  box-shadow: 0 8px 24px rgba(8, 32, 72, .28);
+  backdrop-filter: blur(10px);
+}

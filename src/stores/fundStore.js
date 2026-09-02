@@ -48,41 +48,31 @@ export const useFundStore = defineStore('fund', {
     async fetchIndices() {
       return getIndices(DEFAULT_INDICES);
     },
-    // 智能估值：官方估值/真实净值优先；官方缺失时用持仓加权补齐。
-    // em/tc/sina 表示强制使用指定行情源的持仓加权估值；tt 表示只展示天天基金官方估值。
+    // 默认不使用自算持仓估值；主链路只用天天基金/FundValuationLast + 新浪估算。
+    // em/tc/sina 仅作为实验性“持仓加权自算”模式，UI 必须标明 source，默认不启用。
     async applyEstimate() {
       const mode = this.settings.estimateSource || 'auto';
-      if (mode === 'tt') {
-        this.quoteFeedback = 'official';
+      const forceWeighted = ['em', 'tc', 'tencent', 'sina'].includes(mode);
+      this.quoteFeedback = mode === 'tt' || mode === 'auto' ? 'official' : '';
+      if (!forceWeighted) {
+        this.rows = [...this.rows];
         return;
       }
-      const forceWeighted = ['em', 'tc', 'tencent', 'sina'].includes(mode);
       let feedback = '';
       await Promise.all(this.rows.map(async (row) => {
         try {
-          // 当日真实净值公布后，永远不允许估算覆盖净值。
           if (row.hasReplace || row.estimateKind === 'nav') return;
-          const hasOfficial = row.gsz !== null && row.gszzl !== null;
-          if (mode === 'auto' && hasOfficial) return;
-          if (mode !== 'auto' && !forceWeighted) return;
-
           const stocks = await getPositionsCached(row.code);
-          if (!stocks.length) {
-            row.estNone = true;
-            return;
-          }
-          const quoteMode = mode === 'auto' ? 'auto' : mode;
-          const { quotes, source } = await getStockQuotes(stocks, quoteMode);
+          if (!stocks.length) return;
+          const { quotes, source } = await getStockQuotes(stocks, mode);
           const est = estimateFund(stocks, quotes);
           const reliable = est && row.dwjz !== null && est.hitCoverage >= Math.max(10, est.coverage * 0.5);
-          if (!reliable) {
-            row.estNone = true;
-            return;
-          }
+          if (!reliable) return;
           row.estPct = est.pct;
           row.estNav = Number((row.dwjz * (1 + est.pct / 100)).toFixed(4));
           row.quoteSource = source;
           row.estimateKind = 'holding';
+          row.estimateSource = 'holding';
           row.gszzl = est.pct;
           row.gsz = row.estNav;
           row.gains = Number(((row.estNav - row.dwjz) * (Number(row.num) || 0)).toFixed(2));

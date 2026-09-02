@@ -20,7 +20,10 @@
         <div class="s-name">{{ item.name }}</div>
         <div class="hint">{{ item.code }}</div>
       </div>
-      <button class="btn btn-primary" @click="add(item)">添加</button>
+      <div class="row-between" style="gap:8px;justify-content:flex-end">
+        <button class="btn mini" @click="add(item, false)">关注</button>
+        <button class="btn btn-primary mini" @click="add(item, true)">关注并持仓</button>
+      </div>
     </div>
 
     <div v-if="keyword && !loading && !results.length" class="card empty">没有匹配结果</div>
@@ -57,9 +60,10 @@ async function onSearch() {
   if (my === seq) loading.value = false;
 }
 
-function add(item) {
+function add(item, withPosition) {
   store.addFund(item);
-  router.push('/');
+  if (withPosition) router.push(`/fund/${item.code}/position?name=${encodeURIComponent(item.name)}`);
+  else router.push('/');
 }
 onMounted(() => {});
 </script>

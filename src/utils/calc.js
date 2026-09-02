@@ -12,25 +12,12 @@ export function normalizeFundRows(rawFundList, watchList) {
     const held = watchList.find((w) => w.code === val.FCODE) || { num: 0, cost: 0 };
     const nav = toNum(val.NAV);
     const navChg = toNum(val.NAVCHGRT);
-    let gsz = toNum(val.GSZ);
-    let gszzl = toNum(val.GSZZL);
+    const gsz = toNum(val.GSZ);
+    const gszzl = toNum(val.GSZZL);
     const gztime = val.GZTIME || '';
-    let hasReplace = false;
-
-    // 情况1：接口的估值时间与最新净值日期一致 => 当日净值已公布，用实际净值/涨幅
-    if (gztime && val.PDATE && val.PDATE !== '--' && val.PDATE === gztime.substr(0, 10)) {
-      hasReplace = true;
-    }
-
-    // 情况2：收盘后接口把 GSZ/GSZZL 置为 null => 用实际净值与涨幅展示
-    if (!hasReplace && (gsz === null || gszzl === null) && nav !== null && navChg !== null) {
-      hasReplace = true;
-    }
-
-    if (hasReplace) {
-      gsz = nav;
-      gszzl = navChg;
-    }
+    const latestTradeDate = val.__latestTradeDate || '';
+    // 只有最新净值日期等于当前交易日时，才算净值已公布；GSZ null 不代表净值公布。
+    const hasReplace = Boolean(latestTradeDate && val.PDATE && val.PDATE !== '--' && val.PDATE === latestTradeDate && nav !== null && navChg !== null);
 
     const num = toNum(held.num) || 0;
     const cost = toNum(held.cost) || 0;
@@ -39,16 +26,18 @@ export function normalizeFundRows(rawFundList, watchList) {
       code: val.FCODE,
       name: val.SHORTNAME,
       jzrq: val.PDATE,
+      latestTradeDate,
+      phase: hasReplace ? 'NAV_PUBLISHED' : (String(val.__phase || '') === 'TRADING' ? 'TRADING' : (String(val.__phase || '') === 'BREAK' ? 'BREAK' : (latestTradeDate && val.PDATE && val.PDATE !== latestTradeDate ? 'WAIT_NAV' : 'OFF'))),
       dwjz: nav,
       gsz,
       gszzl,
       gztime,
       hasReplace,
       num,
-      cost
+      cost,
+      estimateSource: hasReplace ? 'nav' : (val.__estimateSource || (gsz !== null && gszzl !== null ? 'tiantian' : 'none')),
+      estimateKind: hasReplace ? 'nav' : (gsz !== null && gszzl !== null ? (val.__estimateSource === 'tiantian' ? 'official' : 'sina') : 'none')
     };
-    // 估值语义标记：nav=当日已用真实净值；official=官方盘中估值；none=暂无估值（待持仓加权补齐）
-    row.estimateKind = hasReplace ? 'nav' : (gsz !== null && gszzl !== null ? 'official' : 'none');
     row.amount = calcMarketValue(row);
     row.gains = calcTodayGains(row);
     row.costGains = calcCostGains(row);

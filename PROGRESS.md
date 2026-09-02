@@ -34,6 +34,15 @@
 - **在线更新**：默认 Gitee `releases` 分支源，去掉前端硬编码 versionCode（改读 package.json/appVersionCode），update.json 支持 `size/publishedAt`；App 内原生下载 APK、sha256 校验、下载进度回调并调起安装，失败降级为浏览器打开。
 - **验证**：`npm run verify` 13 项通过；新增持仓加权公式与行情源别名回归用例；`npm run build` 通过。
 
+
+## 2.2 v0.3.0 重做门禁（本轮执行）
+
+- **数据源**：下线失效 `fundgz.1234567.com.cn`；新增 `FundValuationLast` 批量源，主动偏股缺失统一接新浪 `FdFundService.getEstimateNetworthPic`（ds3 优先、ds2 兜底）。
+- **净值状态机**：`PDATE == latestTradeDate` 才允许视为净值已公布；`GSZ null` 不再触发“收盘净值已公布”的假阳性；货币/QDII/无源显示 `--`，不再显示 `0.00%`。
+- **门禁命令**：`npm run qa:static`、`npm run qa:fund-oracle` 已加入；`qa/reports/latest-estimate.json` 为最新落盘对账。
+- **导航**：新增 `@capacitor/app` 的 `backButton` 监听；子页返回，根页二次确认退出；新增 `/fund/:code/position` 独立持仓编辑页；搜索支持“关注 / 关注并持仓”；首页支持“全部关注 / 仅持仓”。
+- **当前待关机门**：本机 Gradle 下载受 GitHub/Gradle 网络重试影响失败，Android 真机构建走 Actions 验证；未过发布门禁前不得再打 tag 覆盖 Gitee 更新源。
+
 ## 3. 技术架构变更
 
 - **数据请求**：全部走自研本地 Capacitor 插件 `capacitor-xiaoli-native`（原生 HttpURLConnection，绕过 WebView CORS，支持 GBK 字符集）。
