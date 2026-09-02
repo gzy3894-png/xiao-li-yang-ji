@@ -43,6 +43,8 @@
 - **导航**：新增 `@capacitor/app` 的 `backButton` 监听；子页返回，根页二次确认退出；新增 `/fund/:code/position` 独立持仓编辑页；搜索支持“关注 / 关注并持仓”；首页支持“全部关注 / 仅持仓”。
 - **当前待关机门**：本机 Gradle 下载受 GitHub/Gradle 网络重试影响失败，Android 真机构建走 Actions 验证；未过发布门禁前不得再打 tag 覆盖 Gitee 更新源。
 
+> 紧急热修：`v0.3.1` 移除 `android/app/build.gradle` 中新增的 package.json 兜底读取，构建配置严格对齐已证明可安装的历史工作流；版本 versionName 仍由 CI 环境变量注入。
+
 ## 3. 技术架构变更
 
 - **数据请求**：全部走自研本地 Capacitor 插件 `capacitor-xiaoli-native`（原生 HttpURLConnection，绕过 WebView CORS，支持 GBK 字符集）。

@@ -1,6 +1,6 @@
 {
   "name": "xiao-li-yang-ji",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "小李养鸡 - 开源基金实时估值 Android App（国内直连云更新）",
   "license": "GPL-3.0-only",
@@ -30,5 +30,5 @@
     "esbuild": "^0.25.12",
     "vite": "5.4.11"
   },
-  "appVersionCode": 5
+  "appVersionCode": 6
 }
