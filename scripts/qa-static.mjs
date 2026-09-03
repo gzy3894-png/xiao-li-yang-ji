@@ -8,6 +8,7 @@ const search = readFileSync('src/views/SearchView.vue', 'utf8');
 const style = readFileSync('src/style.css', 'utf8');
 const fundApi = readFileSync('src/services/fundApi.js', 'utf8');
 const calc = readFileSync('src/utils/calc.js', 'utf8');
+const gradle = readFileSync('android/app/build.gradle', 'utf8');
 
 need('android-back-listener', /CapacitorApp\.addListener\('backButton'/.test(app) || /App\.addListener\('backButton'/.test(app));
 need('root-double-exit', /exitApp\(\)/.test(app) && /lastBackAt/.test(app));
@@ -24,6 +25,7 @@ need('glass-card', /\.card \{[\s\S]*backdrop-filter/.test(style));
 need('glass-fallback', /@supports not/.test(style));
 need('exit-tip-style', /\.exit-tip/.test(style));
 need('reports-dir', existsSync('qa/reports/latest-estimate.json'));
+need('android-version-env-injection', /APP_VERSION_CODE/.test(gradle) && /APP_VERSION_NAME/.test(gradle));
 
 const failed = checks.filter((x) => !x.ok);
 console.log(`static gates: ${checks.length - failed.length}/${checks.length} pass`);
